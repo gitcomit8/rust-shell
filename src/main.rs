@@ -1,73 +1,60 @@
-use std::env;
 use std::io::{Write, stdin, stdout};
-use std::path::Path;
-use std::process::{Child, Command, Stdio};
+
+mod command;
+mod env_vars; // Assuming you'll create this module
+mod io;
+mod logic;
+mod ui;
+mod util; // Assuming you'll create this module
+
+use command::execute::execute_command; // Bring execute_command into scope
+use command::parse::parse_input; // Bring parse_input into scope
+use io::completion::handle_completion; // Hypothetical completion function
+use io::history::{load_history, save_history}; // Bring history functions into scope
+use ui::colors::Colorizer;
 
 fn main() {
+    let mut history = load_history();
+    let mut colorizer = Colorizer::new();
+
     loop {
-        print!("> ");
-        stdout().flush();
+        print!("{}", colorizer.colorize("> ", "green")); // Use color for prompt
+        stdout().flush().unwrap();
 
         let mut input = String::new();
-        stdin().read_line(&mut input).unwrap();
+        stdin::read_line(&mut input).unwrap();
 
-        // must be peekable so we know when we are on the last command
-        let mut commands = input.trim().split(" | ").peekable();
+        let input = input.trim();
+
+        // Handle history and completions (Conceptual - adapt as needed)
+        if input.starts_with("!") {
+            // Handle history recall (e.g., !10)
+            // ... logic to fetch from history and execute
+            continue;
+        }
+
+        if input.ends_with("\t") {
+            handle_completion(input); // Handle tab completion
+            continue;
+        }
+
+        let commands = parse_input(input);
+
         let mut previous_command = None;
 
-        while let Some(command) = commands.next() {
-            let mut parts = command.trim().split_whitespace();
-            let command = parts.next().unwrap();
-            let args = parts;
+        for command_info in commands {
+            let result = execute_command(command_info, &mut previous_command);
 
-            match command {
-                "cd" => {
-                    let new_dir = args.peekable().peek().map_or("/", |x| *x);
-                    let root = Path::new(new_dir);
-                    if let Err(e) = env::set_current_dir(&root) {
-                        eprintln!("{}", e);
-                    }
-
-                    previous_command = None;
-                }
-                "exit" => return,
-                command => {
-                    let stdin = previous_command.map_or(Stdio::inherit(), |output: Child| {
-                        Stdio::from(output.stdout.unwrap())
-                    });
-
-                    let stdout = if commands.peek().is_some() {
-                        // there is another command piped behind this one
-                        // prepare to send output to the next command
-                        Stdio::piped()
-                    } else {
-                        // there are no more commands piped behind this one
-                        // send output to shell stdout
-                        Stdio::inherit()
-                    };
-
-                    let output = Command::new(command)
-                        .args(args)
-                        .stdin(stdin)
-                        .stdout(stdout)
-                        .spawn();
-
-                    match output {
-                        Ok(output) => {
-                            previous_command = Some(output);
-                        }
-                        Err(e) => {
-                            previous_command = None;
-                            eprintln!("{}", e);
-                        }
-                    };
+            match result {
+                Ok(_) => {} // Command executed successfully
+                Err(e) => {
+                    eprintln!("{}", colorizer.colorize(&format!("Error: {}", e), "red"));
                 }
             }
         }
 
-        if let Some(mut final_command) = previous_command {
-            // block until the final command has finished
-            final_command.wait();
-        }
+        //Need to implement background process logic here
+        history.push(input.to_string());
+        save_history(&history);
     }
 }
