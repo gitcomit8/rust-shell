@@ -1,3 +1,3 @@
 pub mod completion;
-pub mod histroy;
+pub mod history;
 pub mod redirection;
