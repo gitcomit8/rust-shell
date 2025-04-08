@@ -28,21 +28,18 @@ pub fn get_command_completions(input: &str) -> Vec<String> {
     let built_in_commands = vec![
         "cd", "exit", "history", // ... other built-in commands
     ];
-
     commands.extend(
         built_in_commands
             .into_iter()
             .filter(|cmd| cmd.starts_with(input))
             .map(|cmd| cmd.to_string()),
     );
-
     commands
 }
 
 pub fn get_file_path_completions(input: &str) -> Vec<String> {
     let current_dir = env::current_dir().unwrap();
     let mut completions = Vec::new();
-
     if let Ok(entries) = fs::read_dir(current_dir) {
         for entry in entries {
             if let Ok(entry) = entry {
